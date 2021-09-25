@@ -1,0 +1,122 @@
+---
+title: "Adverse Events by System Organ Class and Preferred Term"
+output: html_document
+---
+
+
+```{r, echo = FALSE, include = FALSE}
+library(foreign)
+library(tidyverse)
+library(sqldf)
+library(xtable)
+```
+
+```{r, echo = FALSE, include = FALSE}
+adae <- read.xport("./adae_j.xpt") %>%
+  filter(SAFFL == "Y", TRTEMFL == "Y") %>%
+  select(USUBJID, TRTA, TRTAN,
+         AEBODSYS, AEBODSYJ, AESOCCD, AEDECOD, AEDECODJ, AEPTCD)
+
+adsl <- read.xport("./adsl.xpt") %>%
+  filter(SAFFL == "Y") %>%
+  select(USUBJID, TRT01A, TRT01AN)
+```
+
+```{r, echo = FALSE, include = FALSE}
+# No. of subjects
+df_n <- adsl %>%
+  count(TRT01AN)
+
+n_0  <- df_n[df_n$TRT01AN == 0,  2]
+n_54 <- df_n[df_n$TRT01AN == 54, 2]
+n_81 <- df_n[df_n$TRT01AN == 81, 2]
+
+# No. of subjects by AEs
+df_soc <- sqldf("
+  select AEBODSYS as s1
+       , '_'      as s2
+       , AEBODSYS as out1
+       , AEBODSYJ as out2
+       , '#Total' as out3
+       , NULL     as out4
+       , count(distinct
+           case(TRTAN)
+             when(0) then USUBJID
+             else         NULL
+           end) as _out5
+       , count(distinct
+           case(TRTAN)
+             when(54) then USUBJID
+             else          NULL
+           end) as _out6
+       , count(distinct
+           case(TRTAN)
+             when(81) then USUBJID
+             else          NULL
+           end) as _out7
+  from adae
+  group by 1, 2, 3, 4, 5, 6
+  ")
+
+df_pt <- sqldf("
+  select AEBODSYS as s1
+       , AEDECOD  as s2
+       , NULL     as out1
+       , NULL     as out2
+       , AEDECOD  as out3
+       , AEDECODJ as out4
+       , count(distinct
+           case(TRTAN)
+             when(0) then USUBJID
+             else         NULL
+           end) as _out5
+       , count(distinct
+           case(TRTAN)
+             when(54) then USUBJID
+             else          NULL
+           end) as _out6
+       , count(distinct
+           case(TRTAN)
+             when(81) then USUBJID
+             else          NULL
+           end) as _out7
+  from adae
+  group by 1, 2, 3, 4, 5, 6
+  ")
+
+df <- union_all(df_soc, df_pt) %>%
+  arrange(s1, s2)
+
+# Formatting
+n_pct <- function(n, denominator = d) {
+  if (n == 0) {
+    txt = ""
+  }
+  else {
+    pct = format(round(n/denominator*100, digits = 1), nsmall = 1)
+    txt = paste0(n, " (", pct, "%)")
+  }
+  return(txt)
+}
+
+df["out5"] <- apply(df["_out5"], 1, n_pct, d = n_0)
+df["out6"] <- apply(df["_out6"], 1, n_pct, d = n_54)
+df["out7"] <- apply(df["_out7"], 1, n_pct, d = n_81)
+
+out <- df %>%
+  select(out1, out2, out3, out4, out5, out6, out7)
+```
+
+```{r, echo = FALSE, results = 'asis'}
+xt <- xtable(out)
+names(xt) <- c("System Organ Class",
+               "",
+               "Preferred Term",
+               "",
+               paste0("Placebo (N=", n_0, ")"),
+               paste0("Low Dose (N=", n_54, ")"),
+               paste0("High Dose (N=", n_81, ")"))
+print(xt, type = "html", include.rownames = FALSE)
+```
+
+E.O.D.
