@@ -1,0 +1,73 @@
+---
+title: "TEAE Table"
+author: "PuiPui_NumaCar"
+date: "`r format(Sys.time(), '%Y/%m/%d')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Phuse Japan open source technology working group are learning R and R-markdown.
+A following Treatment Emergent Adverse Event (TEAE) table was developed by R and R-markdown.
+This R program was made referring to the following URL.   
+<https://www.r-bloggers.com/2020/02/how-to-make-nice-publishable-adverse-event-tables-using-tidyverse/>.
+
+
+```{r message=FALSE, , echo=FALSE}
+library(foreign)
+library(tidyverse)
+# Importing ADaM Datasets
+adsl <- read.xport("adsl.xpt")
+# adae <- read.xport("adae.xpt")
+adae_j <- read.xport("adae_j.xpt")
+
+# Develop Header
+pre_header_ae <- adsl %>%
+  filter(SAFFL == "Y") %>%
+  group_by(TRT01AN) %>%
+  summarise(n=n()) %>% 
+  ungroup() %>%
+  mutate(armtxt = case_when(
+    TRT01AN == 0 ~ "Placebo",
+    TRT01AN == 54 ~ "Low_Dose",
+    TRT01AN == 81 ~ "High_Dose"
+  )) %>%
+  mutate(txt = paste0(gsub("_", " ", armtxt), " (N=", n, ")")) %>%
+  mutate(TRTAN = TRT01AN)
+
+header_ae <- pre_header_ae %>%
+  select(txt) %>%
+  deframe
+
+# Count AEs
+output_adae_j <- adae_j %>%
+  bind_rows(adae_j, .id="added") %>%
+  filter(SAFFL == "Y") %>%
+  mutate(AEDECOD = if_else(added == 2, "#Total", AEDECOD), 
+         AEDECODJ = if_else(added == 2, "#合計", AEDECODJ)) %>%
+  group_by(USUBJID, TRTAN, AESOC, AESOCJ, AEDECOD, AEDECODJ) %>%
+  summarise(n_events = n()) %>%
+  group_by(TRTAN, AESOC, AESOCJ, AEDECOD, AEDECODJ) %>%
+  summarise(n_pat = n(), n_events = sum(n_events)) %>%
+  ungroup %>%
+  left_join(pre_header_ae, by="TRTAN") %>%
+  mutate(pct = round(n_pat/n*100,digits = 1),
+           txt = paste0(n_pat, " (", pct, "%)")) %>%
+  select(armtxt, AESOC, AESOCJ, AEDECOD, AEDECODJ, txt) %>%
+  pivot_wider(values_from = txt, names_from = armtxt) %>%
+  mutate(Placebo = if_else(is.na(Placebo), "", Placebo), 
+         Low_Dose = if_else(is.na(Low_Dose), "", Low_Dose),
+         High_Dose = if_else(is.na(High_Dose), "", High_Dose)) %>%
+  arrange(AESOC, AEDECOD) %>%  group_by(AESOC2 = AESOC) %>%
+  mutate(AESOC = if_else(row_number() != 1, "", AESOC), 
+         AESOCJ = if_else(row_number() != 1, "", AESOCJ)) %>% ungroup() %>% select(-AESOC2)
+
+knitr::kable(output_adae_j, col.names = c("System Organ Class", "System Organ Class (日本語)", "Preferred Term", "Preferred Term (日本語)", header_ae),
+               caption = " Adverse Events by System Organ Class and Preferred term*",
+               booktabs = TRUE,
+               longtable = TRUE)
+```
