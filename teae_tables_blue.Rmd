@@ -19,7 +19,7 @@ This R program was made referring to the following URL.
 
 ```{r message=FALSE, , echo=FALSE}
 library(foreign)
-library(tidyverse)
+library(tidyverse
 # Importing ADaM Datasets
 adsl <- read.xport("adsl.xpt")
 # adae <- read.xport("adae.xpt")
@@ -28,6 +28,7 @@ adae_j <- read.xport("adae_j.xpt")
 # Develop Header
 pre_header_ae <- adsl %>%
   filter(SAFFL == "Y") %>%
+  # TEAEのみ抽出すること。
   group_by(TRT01AN) %>%
   summarise(n=n()) %>% 
   ungroup() %>%
