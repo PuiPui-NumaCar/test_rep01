@@ -27,7 +27,7 @@ adae_j <- read.xport("adae_j.xpt")
 
 # Develop Header
 pre_header_ae <- adsl %>%
-  filter(SAFFL == "Y") %>%
+  filter(SAFFL == "Y" & TRTEMFL == "Y") %>%
   # TEAEのみ抽出すること。
   group_by(TRT01AN) %>%
   summarise(n=n()) %>% 
